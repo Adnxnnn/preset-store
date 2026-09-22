@@ -17,7 +17,7 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const clientId = process.env.CASHFREE_APP_ID;
     const clientSecret = process.env.CASHFREE_SECRET_KEY;
@@ -41,16 +41,10 @@ export async function POST() {
       );
     }
 
-    const appUrl = process.env.APP_URL;
-    if (!appUrl || !appUrl.startsWith("https://")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "APP_URL must be your public HTTPS site URL (for example, https://your-domain.com). Cashfree cannot return to localhost.",
-        },
-        { status: 500 }
-      );
+    let appUrl = process.env.APP_URL;
+    if (!appUrl) {
+      const host = req.headers.get("host") || "localhost:3000";
+      appUrl = `https://${host}`;
     }
 
     const cashfree = new Cashfree(
@@ -95,6 +89,7 @@ export async function POST() {
       {
         success: false,
         error: errorMessage(error, "Cashfree order creation failed"),
+        details: (error as any)?.response?.data || String(error),
       },
       { status: 500 }
     );
