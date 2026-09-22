@@ -115,7 +115,7 @@ export default function Home() {
 
         <div className="mt-6">
           <span className="text-4xl font-bold text-gray-900">
-            ₹499
+            ₹1
           </span>
         </div>
 
@@ -124,7 +124,7 @@ export default function Home() {
           disabled={loading}
           className="mt-8 w-full rounded-xl bg-black px-6 py-4 text-white font-semibold hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Opening Checkout..." : "Buy Now — ₹499"}
+          {loading ? "Opening Checkout..." : "Buy Now — ₹1"}
         </button>
 
         <p className="mt-4 text-xs text-gray-500">
