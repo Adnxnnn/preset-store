@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const clientId = process.env.CASHFREE_APP_ID;
     const clientSecret = process.env.CASHFREE_SECRET_KEY;
 
-    const environment = process.env.CASHFREE_ENVIRONMENT?.toUpperCase();
+    const environment = process.env.CASHFREE_ENVIRONMENT?.trim().toUpperCase();
 
     if (environment !== "SANDBOX" && environment !== "PRODUCTION") {
       return NextResponse.json(

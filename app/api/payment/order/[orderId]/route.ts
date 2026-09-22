@@ -12,7 +12,7 @@ export async function GET(
   const { orderId } = await params;
   const clientId = process.env.CASHFREE_APP_ID;
   const clientSecret = process.env.CASHFREE_SECRET_KEY;
-  const environment = process.env.CASHFREE_ENVIRONMENT?.toUpperCase();
+  const environment = process.env.CASHFREE_ENVIRONMENT?.trim().toUpperCase();
 
   if (!clientId || !clientSecret || (environment !== "SANDBOX" && environment !== "PRODUCTION")) {
     return NextResponse.json({ error: "Cashfree is not configured" }, { status: 500 });
