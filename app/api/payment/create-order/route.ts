@@ -26,7 +26,10 @@ export async function POST(req: Request) {
 
     if (environment !== "SANDBOX" && environment !== "PRODUCTION") {
       return NextResponse.json(
-        { success: false, error: "CASHFREE_ENVIRONMENT must be SANDBOX or PRODUCTION" },
+        { 
+          success: false, 
+          error: `CASHFREE_ENVIRONMENT must be SANDBOX or PRODUCTION. Currently it is: "${process.env.CASHFREE_ENVIRONMENT || 'undefined'}"` 
+        },
         { status: 500 }
       );
     }
