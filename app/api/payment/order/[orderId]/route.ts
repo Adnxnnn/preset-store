@@ -10,8 +10,8 @@ export async function GET(
   { params }: RouteContext<"/api/payment/order/[orderId]">
 ) {
   const { orderId } = await params;
-  const clientId = process.env.CASHFREE_APP_ID;
-  const clientSecret = process.env.CASHFREE_SECRET_KEY;
+  const clientId = process.env.CASHFREE_APP_ID?.trim();
+  const clientSecret = process.env.CASHFREE_SECRET_KEY?.trim();
   const environment = process.env.CASHFREE_ENVIRONMENT?.trim().toUpperCase();
 
   if (!clientId || !clientSecret || (environment !== "SANDBOX" && environment !== "PRODUCTION")) {

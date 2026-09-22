@@ -19,8 +19,8 @@ function errorMessage(error: unknown, fallback: string) {
 
 export async function POST(req: Request) {
   try {
-    const clientId = process.env.CASHFREE_APP_ID;
-    const clientSecret = process.env.CASHFREE_SECRET_KEY;
+    const clientId = process.env.CASHFREE_APP_ID?.trim();
+    const clientSecret = process.env.CASHFREE_SECRET_KEY?.trim();
 
     const environment = process.env.CASHFREE_ENVIRONMENT?.trim().toUpperCase();
 
