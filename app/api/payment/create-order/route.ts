@@ -74,8 +74,13 @@ export async function POST(req: Request) {
       }
     };
 
-    // @ts-ignore
-    const response = await Cashfree.PGCreateOrder("2023-08-01", request);
+    const cashfree = new Cashfree(
+      envValue === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX,
+      process.env.CASHFREE_APP_ID || "",
+      process.env.CASHFREE_SECRET_KEY || ""
+    );
+
+    const response = await cashfree.PGCreateOrder(request);
 
     if (response.data && response.data.payment_session_id) {
       return NextResponse.json({
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
         environment: envValue === "PRODUCTION" ? "production" : "sandbox"
       });
     } else {
-      throw new Error(response.data?.message || "Failed to create Cashfree order");
+      throw new Error((response.data as any)?.message || "Failed to create Cashfree order");
     }
 
   } catch (error: any) {

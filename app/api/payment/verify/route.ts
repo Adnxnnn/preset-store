@@ -28,8 +28,13 @@ export async function GET(req: Request) {
     }
 
     // 1. Verify Payment with Cashfree
-    // @ts-ignore
-    const response = await Cashfree.PGOrderFetchPayments("2023-08-01", orderId);
+    const cashfree = new Cashfree(
+      envValue === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX,
+      process.env.CASHFREE_APP_ID || "",
+      process.env.CASHFREE_SECRET_KEY || ""
+    );
+
+    const response = await cashfree.PGOrderFetchPayments(orderId);
     
     // Find a SUCCESS payment
     const payment = response.data?.find((p: any) => p.payment_status === "SUCCESS");
@@ -55,8 +60,8 @@ export async function GET(req: Request) {
     const downloadLink = signedUrlData?.signedUrl;
 
     // 4. Record Order in Supabase Database for Admin Dashboard & Analytics
-    const customerEmail = response.data[0]?.payment_group_details?.customer_email || "customer@example.com";
-    const orderAmount = payment.payment_amount || product.price;
+    const customerEmail = (response.data?.[0] as any)?.payment_group_details?.customer_email || (response.data?.[0] as any)?.customer_details?.customer_email || "customer@example.com";
+    const orderAmount = (payment as any)?.payment_amount || product.price;
 
     let userId: string | null = null;
     const { data: existingProfile } = await supabase
