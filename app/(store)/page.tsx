@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles, MoveRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { supabase } from "./lib/supabase";
+import { supabase } from "../lib/supabase";
 
 export default function HomePage() {
   const [featured, setFeatured] = useState<any[]>([]);

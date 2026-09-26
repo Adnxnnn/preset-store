@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import Link from "next/link";
 import { Plus, MoreVertical, Edit, Trash, Image as ImageIcon } from "lucide-react";
 
 export default function AdminProducts() {
@@ -36,9 +37,9 @@ export default function AdminProducts() {
           <h2 className="text-2xl font-medium text-white mb-1">Products</h2>
           <p className="text-gray-400 text-sm">Manage your preset collections and files.</p>
         </div>
-        <button className="h-10 px-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2">
+        <Link href="/admin/products/new" className="h-10 px-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2">
           <Plus className="w-4 h-4" /> Add Product
-        </button>
+        </Link>
       </div>
 
       <div className="bg-[#050505] border border-white/5 rounded-2xl overflow-hidden">

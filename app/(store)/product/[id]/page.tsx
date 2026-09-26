@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "../../../lib/supabase";
 import { SlidersHorizontal, ArrowLeft, Download, ShieldCheck, FileImage } from "lucide-react";
 import Link from "next/link";
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { ArrowUpRight, ArrowDownRight, IndianRupee, ShoppingCart, Users, Package } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, IndianRupee, ShoppingCart, Users, Package, LineChart } from "lucide-react";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
