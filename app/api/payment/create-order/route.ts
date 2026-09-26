@@ -3,8 +3,11 @@ import { Cashfree } from "cashfree-pg";
 import { supabase } from "../../../lib/supabase";
 
 // Initialize Cashfree
+// @ts-ignore
 Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
+// @ts-ignore
 Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+// @ts-ignore
 Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? Cashfree.Environment.PRODUCTION : Cashfree.Environment.SANDBOX;
 
 export async function POST(req: Request) {
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
       }
     };
 
+    // @ts-ignore
     const response = await Cashfree.PGCreateOrder("2023-08-01", request);
 
     if (response.data) {

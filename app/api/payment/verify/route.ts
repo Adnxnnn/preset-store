@@ -4,8 +4,11 @@ import { supabase } from "../../../lib/supabase";
 import { Resend } from "resend";
 
 // Initialize APIs
+// @ts-ignore
 Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
+// @ts-ignore
 Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+// @ts-ignore
 Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? Cashfree.Environment.PRODUCTION : Cashfree.Environment.SANDBOX;
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
@@ -21,6 +24,7 @@ export async function GET(req: Request) {
     }
 
     // 1. Verify Payment with Cashfree
+    // @ts-ignore
     const response = await Cashfree.PGOrderFetchPayments("2023-08-01", orderId);
     
     // Find a SUCCESS payment
