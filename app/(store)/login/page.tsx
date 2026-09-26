@@ -20,26 +20,35 @@ export default function CustomerLogin() {
     setLoading(true);
     setError("");
 
-    if (isSignUp) {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (signUpError) setError(signUpError.message);
-      else {
-        alert("Success! Please check your email to verify your account, then log in.");
-        setIsSignUp(false);
+    try {
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) {
+          setError(signUpError.message);
+        } else {
+          alert("Account created successfully! Please verify your email or sign in.");
+          setIsSignUp(false);
+        }
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) {
+          setError(signInError.message);
+        } else {
+          router.push('/account');
+        }
       }
-    } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (signInError) setError(signInError.message);
-      else router.push('/account');
+    } catch (err: any) {
+      console.error("Auth Exception:", err);
+      setError(err?.message || "Authentication service unreachable. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   }
 
   async function handleGoogleLogin() {

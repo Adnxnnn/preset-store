@@ -17,34 +17,39 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
 
-    // 1. Sign in with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 1. Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (authError) {
-      setError(authError.message);
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Check if they have the 'admin' role in the profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', authData.user?.id)
+        .single();
+
+      if (profile?.role === 'admin') {
+        router.push('/admin');
+      } else {
+        // If not admin, sign them out immediately
+        await supabase.auth.signOut();
+        setError("Unauthorized. You do not have admin privileges.");
+      }
+    } catch (err: any) {
+      console.error("Admin Login Exception:", err);
+      setError(err?.message || "Authentication failed. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // 2. Check if they have the 'admin' role in the profiles table
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', authData.user?.id)
-      .single();
-
-    if (profile?.role === 'admin') {
-      router.push('/admin');
-    } else {
-      // If not admin, sign them out immediately
-      await supabase.auth.signOut();
-      setError("Unauthorized. You do not have admin privileges.");
-    }
-    
-    setLoading(false);
   }
 
   return (
