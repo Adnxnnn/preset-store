@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       {
         success: false,
         error: errorMessage(error, "Cashfree order creation failed"),
-        details: (error as any)?.response?.data || String(error),
+        details: (error as Record<string, unknown>)?.response || String(error),
       },
       { status: 500 }
     );
