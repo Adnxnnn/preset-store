@@ -5,22 +5,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { SlidersHorizontal, ArrowLeft, Download, ShieldCheck, FileImage } from "lucide-react";
 import Link from "next/link";
-import { Metadata } from "next";
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  // Since we fetch clientside mostly, we can just do a basic server-side fetch for SEO
-  const { data: product } = await supabase.from('products').select('title, description, after_image_url').eq('id', params.id).single();
-  
-  if (!product) return { title: "Product Not Found | Luma" };
-  
-  return {
-    title: `${product.title} | Luma Presets`,
-    description: product.description,
-    openGraph: {
-      images: [product.after_image_url || ''],
-    }
-  };
-}
 
 function ImageSlider({ beforeSrc, afterSrc }: { beforeSrc: string; afterSrc: string }) {
   const [sliderPosition, setSliderPosition] = useState(50);
