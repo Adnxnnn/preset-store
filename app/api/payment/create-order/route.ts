@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { supabase } from "../../../lib/supabase";
 
-// Initialize Cashfree
-// @ts-ignore
-Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
-// @ts-ignore
-Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
-// @ts-ignore
-Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
+
 
 export async function POST(req: Request) {
+  // @ts-ignore
+  Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
+  // @ts-ignore
+  Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+  // @ts-ignore
+  Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
+
   try {
     const { productId, customerEmail, customerName, customerPhone, promoCode } = await req.json();
 
