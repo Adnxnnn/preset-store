@@ -29,27 +29,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     async function checkAuth() {
+      const isMasterAdmin = typeof window !== "undefined" && localStorage.getItem("luma_admin_auth") === "true";
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!isMasterAdmin && !session) {
         router.push("/admin/login");
         return;
-      }
-
-      // Check / ensure admin profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (!profile) {
-        await supabase.from("profiles").upsert({
-          id: session.user.id,
-          email: session.user.email,
-          role: "admin",
-          full_name: session.user.user_metadata?.full_name || "Admin"
-        });
       }
 
       setIsChecking(false);
@@ -68,6 +53,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   async function handleLogout() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("luma_admin_auth");
+      localStorage.removeItem("luma_admin_email");
+    }
     await supabase.auth.signOut();
     router.push("/admin/login");
   }
