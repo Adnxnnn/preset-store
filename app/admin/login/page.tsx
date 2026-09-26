@@ -27,45 +27,23 @@ export default function AdminLogin() {
       return;
     }
 
+    // Set authorized master admin session immediately
+    if (typeof window !== "undefined") {
+      localStorage.setItem("luma_admin_auth", "true");
+      localStorage.setItem("luma_admin_email", cleanEmail);
+    }
+
     try {
-      // 1. Authenticate with Supabase Auth in background
-      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      // Background sync with Supabase (non-blocking)
+      supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: cleanPassword,
-      });
+      }).catch(() => {});
+    } catch (_) {}
 
-      if (signInError && signInError.message.toLowerCase().includes("invalid login")) {
-        // If not created yet in Supabase Auth, auto-register
-        await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPassword,
-        });
-      }
-
-      // 2. Persist authorized master admin session
-      localStorage.setItem("luma_admin_auth", "true");
-      localStorage.setItem("luma_admin_email", cleanEmail);
-
-      // 3. Ensure profile is marked as admin
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session?.user?.id) {
-        await supabase.from("profiles").upsert({
-          id: sessionData.session.user.id,
-          email: cleanEmail,
-          role: "admin",
-          full_name: "Store Admin"
-        });
-      }
-
-      router.push("/admin");
-    } catch (err: any) {
-      // Even on Supabase network latency, master admin auth is granted
-      localStorage.setItem("luma_admin_auth", "true");
-      localStorage.setItem("luma_admin_email", cleanEmail);
-      router.push("/admin");
-    } finally {
-      setLoading(false);
-    }
+    // Immediate access
+    router.push("/admin");
+    setLoading(false);
   }
 
   return (
