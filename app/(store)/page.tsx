@@ -139,6 +139,32 @@ export default function HomePage() {
           </form>
         </div>
       </section>
+      {/* Newsletter Section */}
+      <section className="py-24 px-6 border-t border-white/5">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-serif text-white mb-4">Join the Creator Club</h2>
+          <p className="text-gray-400 mb-8">Get exclusive access to new preset drops, editing tutorials, and creative resources sent straight to your inbox.</p>
+          
+          <form 
+            onSubmit={(e) => { e.preventDefault(); alert("Thanks for subscribing! We'll be in touch soon."); }}
+            className="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto"
+          >
+            <input 
+              type="email" 
+              placeholder="Enter your email address"
+              required
+              className="flex-1 h-14 bg-white/5 border border-white/10 rounded-xl px-6 text-white focus:outline-none focus:border-white/30"
+            />
+            <button 
+              type="submit"
+              className="h-14 px-8 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors whitespace-nowrap"
+            >
+              Subscribe
+            </button>
+          </form>
+          <p className="text-xs text-gray-600 mt-4">We respect your privacy. No spam, ever.</p>
+        </div>
+      </section>
     </main>
   );
 }
