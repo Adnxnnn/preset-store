@@ -82,7 +82,10 @@ export default function ProductPage() {
   // Checkout State
   const [showCheckout, setShowCheckout] = useState(false);
   const [email, setEmail] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [promoMsg, setPromoMsg] = useState({ text: "", type: "" });
 
   useEffect(() => {
     async function loadProduct() {
@@ -103,6 +106,27 @@ export default function ProductPage() {
     document.body.appendChild(script);
   }, [id]);
 
+  async function applyPromoCode(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!promoCode) return;
+    setPromoMsg({ text: "Checking...", type: "gray" });
+    
+    const { data } = await supabase
+      .from('promo_codes')
+      .select('discount_percentage')
+      .eq('code', promoCode.toUpperCase())
+      .eq('is_active', true)
+      .single();
+
+    if (data) {
+      setDiscountPercent(data.discount_percentage);
+      setPromoMsg({ text: `Code applied! ${data.discount_percentage}% off.`, type: "green" });
+    } else {
+      setDiscountPercent(0);
+      setPromoMsg({ text: "Invalid or expired code.", type: "red" });
+    }
+  }
+
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return alert("Please enter your email");
@@ -115,7 +139,8 @@ export default function ProductPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: product.id,
-          customerEmail: email
+          customerEmail: email,
+          promoCode: discountPercent > 0 ? promoCode : undefined
         })
       });
       
@@ -210,12 +235,38 @@ export default function ProductPage() {
                     placeholder="Enter your email address"
                     className="w-full h-14 bg-[#050505] border border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-white/30"
                   />
+                  
+                  <div className="pt-2 border-t border-white/10 mt-4">
+                    <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-medium">Have a promo code?</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value)}
+                        placeholder="Discount code"
+                        className="flex-1 h-12 bg-[#050505] border border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-white/30 uppercase"
+                      />
+                      <button 
+                        type="button"
+                        onClick={applyPromoCode}
+                        className="h-12 px-6 bg-white/10 text-white font-medium rounded-xl hover:bg-white/20 transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                    {promoMsg.text && (
+                      <p className={`text-sm mt-2 ${promoMsg.type === 'green' ? 'text-green-400' : promoMsg.type === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
+                        {promoMsg.text}
+                      </p>
+                    )}
+                  </div>
+
                   <button 
                     type="submit"
                     disabled={isProcessing}
-                    className="w-full h-14 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex justify-center items-center"
+                    className="w-full h-14 mt-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex justify-center items-center"
                   >
-                    {isProcessing ? "Connecting to Secure Gateway..." : `Pay ₹${product.price}`}
+                    {isProcessing ? "Connecting to Secure Gateway..." : `Pay ₹${discountPercent > 0 ? (product.price - (product.price * discountPercent / 100)).toFixed(2) : product.price}`}
                   </button>
                 </form>
               )}

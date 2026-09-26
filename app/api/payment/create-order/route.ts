@@ -9,7 +9,7 @@ Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? Cashfree.Env
 
 export async function POST(req: Request) {
   try {
-    const { productId, customerEmail, customerName, customerPhone } = await req.json();
+    const { productId, customerEmail, customerName, customerPhone, promoCode } = await req.json();
 
     if (!productId || !customerEmail) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -26,12 +26,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
+    let finalPrice = product.price;
+
+    // 1b. Verify Promo Code
+    if (promoCode) {
+      const { data: promo } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', promoCode.toUpperCase())
+        .eq('is_active', true)
+        .single();
+      
+      if (promo) {
+        // Apply percentage discount
+        const discountAmount = (finalPrice * promo.discount_percentage) / 100;
+        finalPrice = finalPrice - discountAmount;
+      }
+    }
+
     // 2. Generate unique order ID
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     // 3. Create Cashfree Order
     const request = {
-      order_amount: product.price,
+      order_amount: finalPrice,
       order_currency: "INR",
       order_id: orderId,
       customer_details: {
