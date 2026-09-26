@@ -5,12 +5,13 @@ import { supabase } from "../../../lib/supabase";
 
 
 export async function POST(req: Request) {
+  const envValue = (process.env.CASHFREE_ENVIRONMENT || process.env.CASHFREE_ENV || "").trim().toUpperCase();
   // @ts-ignore
   Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
   // @ts-ignore
   Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
   // @ts-ignore
-  Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
+  Cashfree.XEnvironment = envValue === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
   try {
     const { productId, customerEmail, customerName, customerPhone, promoCode } = await req.json();

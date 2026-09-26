@@ -6,12 +6,13 @@ import { Resend } from "resend";
 
 
 export async function GET(req: Request) {
+  const envValue = (process.env.CASHFREE_ENVIRONMENT || process.env.CASHFREE_ENV || "").trim().toUpperCase();
   // @ts-ignore
   Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
   // @ts-ignore
   Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
   // @ts-ignore
-  Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
+  Cashfree.XEnvironment = envValue === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
   const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
   
