@@ -11,9 +11,8 @@ Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
 // @ts-ignore
 Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
-
 export async function GET(req: Request) {
+  const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
   try {
     const { searchParams } = new URL(req.url);
     const orderId = searchParams.get('order_id');
