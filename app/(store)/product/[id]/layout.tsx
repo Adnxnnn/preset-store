@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { supabase } from "../../../../lib/supabase";
+import { supabase } from "../../../lib/supabase";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const { data: product } = await supabase.from('products').select('title, description, after_image_url').eq('id', params.id).single();
