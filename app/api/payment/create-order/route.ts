@@ -51,6 +51,9 @@ export async function POST(req: Request) {
     // 2. Generate unique order ID
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+    const reqUrl = new URL(req.url);
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || reqUrl.origin || 'https://preset-store.tsadnan39.workers.dev';
+
     // 3. Create Cashfree Order
     const request = {
       order_amount: finalPrice,
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
         customer_phone: customerPhone || "9999999999" // Cashfree requires phone
       },
       order_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/payment/verify?order_id=${orderId}&product_id=${productId}`,
+        return_url: `${baseUrl}/api/payment/verify?order_id=${orderId}&product_id=${productId}`,
       }
     };
 

@@ -14,13 +14,16 @@ export async function GET(req: Request) {
   Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
   const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
+  
+  const reqUrl = new URL(req.url);
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || reqUrl.origin || 'https://preset-store.tsadnan39.workers.dev';
+
   try {
-    const { searchParams } = new URL(req.url);
-    const orderId = searchParams.get('order_id');
-    const productId = searchParams.get('product_id');
+    const orderId = reqUrl.searchParams.get('order_id');
+    const productId = reqUrl.searchParams.get('product_id');
 
     if (!orderId || !productId) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/payment/failed`);
+      return NextResponse.redirect(`${baseUrl}/payment/failed`);
     }
 
     // 1. Verify Payment with Cashfree
@@ -31,7 +34,7 @@ export async function GET(req: Request) {
     const payment = response.data?.find((p: any) => p.payment_status === "SUCCESS");
 
     if (!payment) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/payment/failed`);
+      return NextResponse.redirect(`${baseUrl}/payment/failed`);
     }
 
     // 2. Fetch Product Details
@@ -73,10 +76,10 @@ export async function GET(req: Request) {
     });
 
     // 5. Redirect to Success Page
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/payment/success?order_id=${orderId}&product_id=${productId}`);
+    return NextResponse.redirect(`${baseUrl}/payment/success?order_id=${orderId}&product_id=${productId}`);
 
   } catch (error: any) {
     console.error("Payment Verification Error:", error);
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/payment/failed`);
+    return NextResponse.redirect(`${baseUrl}/payment/failed`);
   }
 }
