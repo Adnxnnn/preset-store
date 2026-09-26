@@ -145,12 +145,12 @@ export default function ProductPage() {
       });
       
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "Failed to create checkout session");
 
-      // 2. Initialize Cashfree Checkout
-      // @ts-ignore (Cashfree is injected globally by the script)
+      // 2. Initialize Cashfree Checkout matching server environment
+      // @ts-ignore
       const cashfree = window.Cashfree({
-        mode: "sandbox", // Change to "production" in live
+        mode: data.environment || "production",
       });
 
       const checkoutOptions = {
@@ -161,8 +161,8 @@ export default function ProductPage() {
       cashfree.checkout(checkoutOptions);
 
     } catch (error: any) {
-      console.error(error);
-      alert("Failed to initiate checkout. Please try again.");
+      console.error("Checkout Error:", error);
+      alert(error?.message || "Failed to initiate checkout. Please try again.");
       setIsProcessing(false);
     }
   }

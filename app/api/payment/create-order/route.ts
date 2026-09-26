@@ -56,15 +56,18 @@ export async function POST(req: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || reqUrl.origin || 'https://preset-store.tsadnan39.workers.dev';
 
     // 3. Create Cashfree Order
+    const sanitizedCustomerId = (customerEmail.replace(/[^a-zA-Z0-9]/g, '') || `cust_${Date.now()}`).substring(0, 45);
+    const sanitizedPhone = (customerPhone || "9876543210").replace(/[^0-9]/g, '').padEnd(10, '0').substring(0, 10);
+
     const request = {
-      order_amount: finalPrice,
+      order_amount: Number(finalPrice.toFixed(2)),
       order_currency: "INR",
       order_id: orderId,
       customer_details: {
-        customer_id: customerEmail.replace(/[^a-zA-Z0-9]/g, ''),
-        customer_name: customerName || "Customer",
+        customer_id: sanitizedCustomerId,
+        customer_name: customerName || "Preset Customer",
         customer_email: customerEmail,
-        customer_phone: customerPhone || "9999999999" // Cashfree requires phone
+        customer_phone: sanitizedPhone
       },
       order_meta: {
         return_url: `${baseUrl}/api/payment/verify?order_id=${orderId}&product_id=${productId}`,
@@ -74,17 +77,19 @@ export async function POST(req: Request) {
     // @ts-ignore
     const response = await Cashfree.PGCreateOrder("2023-08-01", request);
 
-    if (response.data) {
+    if (response.data && response.data.payment_session_id) {
       return NextResponse.json({
         paymentSessionId: response.data.payment_session_id,
-        orderId: response.data.order_id
+        orderId: response.data.order_id,
+        environment: envValue === "PRODUCTION" ? "production" : "sandbox"
       });
     } else {
-      throw new Error("Failed to create Cashfree order");
+      throw new Error(response.data?.message || "Failed to create Cashfree order");
     }
 
   } catch (error: any) {
+    const errorMsg = error.response?.data?.message || error.message || "Could not initialize payment";
     console.error("Payment Creation Error:", error.response?.data || error);
-    return NextResponse.json({ error: "Could not initialize payment" }, { status: 500 });
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
