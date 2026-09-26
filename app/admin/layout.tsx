@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 import { 
   LayoutDashboard, 
   Package, 
@@ -15,6 +17,43 @@ import {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
+
+  const isLoginPage = pathname === "/admin/login";
+
+  useEffect(() => {
+    if (isLoginPage) {
+      setIsChecking(false);
+      return;
+    }
+
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push("/admin/login");
+        return;
+      }
+
+      // Check if user is actually an admin
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profile?.role !== "admin") {
+        await supabase.auth.signOut();
+        router.push("/admin/login");
+        return;
+      }
+
+      setIsChecking(false);
+    }
+    
+    checkAuth();
+  }, [pathname, router, isLoginPage]);
 
   const navItems = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -24,6 +63,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: "Analytics", href: "/admin/analytics", icon: LineChart },
     { name: "Categories", href: "/admin/categories", icon: Tag },
   ];
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+  }
+
+  if (isChecking) {
+    return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>;
+  }
+
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex min-h-screen bg-[#0a0a0a] text-gray-200">
@@ -60,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Settings className="w-5 h-5" />
             Settings
           </Link>
-          <button className="w-full mt-2 flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors">
+          <button onClick={handleLogout} className="w-full mt-2 flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors">
             <LogOut className="w-5 h-5" />
             Log Out
           </button>
