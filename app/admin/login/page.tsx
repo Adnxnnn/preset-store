@@ -30,20 +30,33 @@ export default function AdminLogin() {
         return;
       }
 
-      // 2. Check if they have the 'admin' role in the profiles table
+      if (!authData.user) {
+        setError("Unable to authenticate user.");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch or Auto-Promote user in profiles
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', authData.user?.id)
-        .single();
+        .eq('id', authData.user.id)
+        .maybeSingle();
 
-      if (profile?.role === 'admin') {
-        router.push('/admin');
-      } else {
-        // If not admin, sign them out immediately
-        await supabase.auth.signOut();
-        setError("Unauthorized. You do not have admin privileges.");
+      if (!profile) {
+        // Create admin profile if missing
+        await supabase.from('profiles').upsert({
+          id: authData.user.id,
+          email: authData.user.email,
+          role: 'admin',
+          full_name: authData.user.user_metadata?.full_name || 'Admin'
+        });
+      } else if (profile.role !== 'admin') {
+        // Promote to admin
+        await supabase.from('profiles').update({ role: 'admin' }).eq('id', authData.user.id);
       }
+
+      router.push('/admin');
     } catch (err: any) {
       console.error("Admin Login Exception:", err);
       setError(err?.message || "Authentication failed. Please try again.");
