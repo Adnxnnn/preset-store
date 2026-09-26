@@ -101,31 +101,37 @@ export async function GET(req: Request) {
       console.error("Error inserting order to database:", dbErr);
     }
 
-    // 5. Send Email via Resend
-    await resend.emails.send({
-      from: 'Luma Presets <noreply@yourdomain.com>', // User needs to verify domain in Resend
-      to: customerEmail,
-      subject: `Your Receipt & Download: ${product.title}`,
-      html: `
-        <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto;">
-          <h1 style="color: #111;">Thank you for your purchase!</h1>
-          <p style="color: #555; font-size: 16px;">We have received your payment of ₹${orderAmount} for <strong>${product.title}</strong>.</p>
-          <div style="margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
-            <a href="${downloadLink}" style="background: #111; color: #fff; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-              Download Your Preset
-            </a>
-            <p style="font-size: 12px; color: #888; margin-top: 15px;">This secure link will expire in 24 hours.</p>
-          </div>
-          <p style="color: #555;">Order ID: ${orderId}</p>
-        </div>
-      `
-    });
+    // 5. Send Email via Resend (Isolated try-catch so unverified domains don't block order success)
+    try {
+      if (process.env.RESEND_API_KEY && downloadLink) {
+        await resend.emails.send({
+          from: 'Luma Presets <onboarding@resend.dev>', // Uses verified onboarding domain by default
+          to: customerEmail,
+          subject: `Your Receipt & Download: ${product.title}`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h1 style="color: #111;">Thank you for your purchase!</h1>
+              <p style="color: #555; font-size: 16px;">We have received your payment of ₹${orderAmount} for <strong>${product.title}</strong>.</p>
+              <div style="margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                <a href="${downloadLink}" style="background: #111; color: #fff; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Download Your Preset
+                </a>
+                <p style="font-size: 12px; color: #888; margin-top: 15px;">This secure link will expire in 24 hours.</p>
+              </div>
+              <p style="color: #555;">Order ID: ${orderId}</p>
+            </div>
+          `
+        });
+      }
+    } catch (emailErr) {
+      console.warn("Resend email delivery skipped or failed:", emailErr);
+    }
 
-    // 6. Redirect to Success Page
-    return NextResponse.redirect(`${baseUrl}/payment/success?order_id=${orderId}&product_id=${productId}`);
+    // 6. Redirect to Success Page with Product & Order info
+    return NextResponse.redirect(`${baseUrl}/payment-success?order_id=${orderId}&product_id=${productId}`);
 
   } catch (error: any) {
     console.error("Payment Verification Error:", error);
-    return NextResponse.redirect(`${baseUrl}/payment/failed`);
+    return NextResponse.redirect(`${baseUrl}/payment-success?status=failed`);
   }
 }
