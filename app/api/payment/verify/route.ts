@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Cashfree } from "cashfree-pg";
+import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { supabase } from "../../../lib/supabase";
 import { Resend } from "resend";
 
@@ -9,7 +9,7 @@ Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
 // @ts-ignore
 Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
 // @ts-ignore
-Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? Cashfree.Environment.PRODUCTION : Cashfree.Environment.SANDBOX;
+Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
 
