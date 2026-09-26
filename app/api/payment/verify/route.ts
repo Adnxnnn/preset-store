@@ -54,9 +54,49 @@ export async function GET(req: Request) {
 
     const downloadLink = signedUrlData?.signedUrl;
 
-    // 4. Send Email via Resend
+    // 4. Record Order in Supabase Database for Admin Dashboard & Analytics
     const customerEmail = response.data[0]?.payment_group_details?.customer_email || "customer@example.com";
-    
+    const orderAmount = payment.payment_amount || product.price;
+
+    let userId: string | null = null;
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', customerEmail)
+      .maybeSingle();
+
+    if (existingProfile) {
+      userId = existingProfile.id;
+    }
+
+    try {
+      const orderPayload: any = {
+        total_amount: orderAmount,
+        status: 'paid',
+        payment_session_id: orderId,
+      };
+      if (userId) {
+        orderPayload.user_id = userId;
+      }
+
+      const { data: insertedOrder, error: orderErr } = await supabase
+        .from('orders')
+        .insert(orderPayload)
+        .select('id')
+        .maybeSingle();
+
+      if (insertedOrder) {
+        await supabase.from('order_items').insert({
+          order_id: insertedOrder.id,
+          product_id: product.id,
+          price_at_purchase: orderAmount,
+        });
+      }
+    } catch (dbErr) {
+      console.error("Error inserting order to database:", dbErr);
+    }
+
+    // 5. Send Email via Resend
     await resend.emails.send({
       from: 'Luma Presets <noreply@yourdomain.com>', // User needs to verify domain in Resend
       to: customerEmail,
@@ -64,7 +104,7 @@ export async function GET(req: Request) {
       html: `
         <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto;">
           <h1 style="color: #111;">Thank you for your purchase!</h1>
-          <p style="color: #555; font-size: 16px;">We have received your payment of ₹${product.price} for <strong>${product.title}</strong>.</p>
+          <p style="color: #555; font-size: 16px;">We have received your payment of ₹${orderAmount} for <strong>${product.title}</strong>.</p>
           <div style="margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
             <a href="${downloadLink}" style="background: #111; color: #fff; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
               Download Your Preset
@@ -76,7 +116,7 @@ export async function GET(req: Request) {
       `
     });
 
-    // 5. Redirect to Success Page
+    // 6. Redirect to Success Page
     return NextResponse.redirect(`${baseUrl}/payment/success?order_id=${orderId}&product_id=${productId}`);
 
   } catch (error: any) {

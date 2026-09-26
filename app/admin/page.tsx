@@ -64,6 +64,8 @@ export default function AdminDashboard() {
       });
     }
     loadStats();
+    const interval = setInterval(loadStats, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const kpis = [
