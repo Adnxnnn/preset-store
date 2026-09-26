@@ -1,100 +1,63 @@
 import { NextResponse } from "next/server";
-import { Cashfree, CFEnvironment } from "cashfree-pg";
+import { Cashfree } from "cashfree-pg";
+import { supabase } from "../../../lib/supabase";
 
-function errorMessage(error: unknown, fallback: string) {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error &&
-    typeof error.response === "object" &&
-    error.response !== null &&
-    "status" in error.response &&
-    error.response.status === 401
-  ) {
-    return "Cashfree rejected the configured credentials. Use a matching App ID and Secret Key for the selected environment.";
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
+// Initialize Cashfree
+Cashfree.XClientId = process.env.CASHFREE_APP_ID || "";
+Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+Cashfree.XEnvironment = process.env.CASHFREE_ENV === "PRODUCTION" ? Cashfree.Environment.PRODUCTION : Cashfree.Environment.SANDBOX;
 
 export async function POST(req: Request) {
   try {
-    const clientId = process.env.CASHFREE_APP_ID?.trim();
-    const clientSecret = process.env.CASHFREE_SECRET_KEY?.trim();
+    const { productId, customerEmail, customerName, customerPhone } = await req.json();
 
-    const environment = process.env.CASHFREE_ENVIRONMENT?.trim().toUpperCase();
-
-    if (environment !== "SANDBOX" && environment !== "PRODUCTION") {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `CASHFREE_ENVIRONMENT must be SANDBOX or PRODUCTION. Currently it is: "${process.env.CASHFREE_ENVIRONMENT || 'undefined'}"` 
-        },
-        { status: 500 }
-      );
+    if (!productId || !customerEmail) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    if (!clientId || !clientSecret) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Cashfree credentials are missing",
-        },
-        { status: 500 }
-      );
+    // 1. Fetch product securely from DB to prevent price tampering
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .single();
+
+    if (productError || !product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    let appUrl = process.env.APP_URL;
-    if (!appUrl) {
-      const host = req.headers.get("host") || "localhost:3000";
-      appUrl = `https://${host}`;
-    }
+    // 2. Generate unique order ID
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    const cashfree = new Cashfree(
-      environment === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX,
-      clientId,
-      clientSecret
-    );
-
-    const orderId = `preset_${Date.now()}`;
-
-    const orderRequest = {
-      order_id: orderId,
-      order_amount: 1,
+    // 3. Create Cashfree Order
+    const request = {
+      order_amount: product.price,
       order_currency: "INR",
-
+      order_id: orderId,
       customer_details: {
-        customer_id: `customer_${Date.now()}`,
-        customer_phone: "9999999999",
-        customer_email: "customer@example.com",
+        customer_id: customerEmail.replace(/[^a-zA-Z0-9]/g, ''),
+        customer_name: customerName || "Customer",
+        customer_email: customerEmail,
+        customer_phone: customerPhone || "9999999999" // Cashfree requires phone
       },
-
       order_meta: {
-        return_url: new URL(
-          "/payment-success?order_id={order_id}",
-          appUrl
-        ).toString(),
-      },
+        return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/payment/verify?order_id=${orderId}&product_id=${productId}`,
+      }
     };
 
-    const response = await cashfree.PGCreateOrder(orderRequest);
+    const response = await Cashfree.PGCreateOrder("2023-08-01", request);
 
-    return NextResponse.json({
-      success: true,
-      orderId: orderId,
-      paymentSessionId: response.data.payment_session_id,
-      environment: environment.toLowerCase(),
-    });
-  } catch (error: unknown) {
-    console.error("Cashfree order creation failed:", error);
+    if (response.data) {
+      return NextResponse.json({
+        paymentSessionId: response.data.payment_session_id,
+        orderId: response.data.order_id
+      });
+    } else {
+      throw new Error("Failed to create Cashfree order");
+    }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: errorMessage(error, "Cashfree order creation failed"),
-        details: (error as Record<string, unknown>)?.response || String(error),
-      },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("Payment Creation Error:", error.response?.data || error);
+    return NextResponse.json({ error: "Could not initialize payment" }, { status: 500 });
   }
 }

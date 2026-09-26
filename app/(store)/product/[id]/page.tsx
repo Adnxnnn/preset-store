@@ -77,6 +77,11 @@ export default function ProductPage() {
   const { id } = useParams();
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Checkout State
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [email, setEmail] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     async function loadProduct() {
@@ -90,7 +95,51 @@ export default function ProductPage() {
       setLoading(false);
     }
     if (id) loadProduct();
+
+    // Load Cashfree SDK script
+    const script = document.createElement('script');
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    document.body.appendChild(script);
   }, [id]);
+
+  async function handleCheckout(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return alert("Please enter your email");
+    
+    setIsProcessing(true);
+    try {
+      // 1. Create Order on Backend
+      const res = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          customerEmail: email
+        })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // 2. Initialize Cashfree Checkout
+      // @ts-ignore (Cashfree is injected globally by the script)
+      const cashfree = window.Cashfree({
+        mode: "sandbox", // Change to "production" in live
+      });
+
+      const checkoutOptions = {
+        paymentSessionId: data.paymentSessionId,
+        redirectTarget: "_self", // Redirects in the same window to our verify URL
+      };
+      
+      cashfree.checkout(checkoutOptions);
+
+    } catch (error: any) {
+      console.error(error);
+      alert("Failed to initiate checkout. Please try again.");
+      setIsProcessing(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -140,9 +189,36 @@ export default function ProductPage() {
               {product.description || "Premium Lightroom presets designed to transform your photos with one click."}
             </p>
 
-            <button className="w-full h-16 bg-white text-black font-medium text-lg rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 mb-8">
-              Buy Now — ₹{product.price}
-            </button>
+            {/* Checkout Area */}
+            <div className="mb-8">
+              {!showCheckout ? (
+                <button 
+                  onClick={() => setShowCheckout(true)}
+                  className="w-full h-16 bg-white text-black font-medium text-lg rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                >
+                  Buy Now — ₹{product.price}
+                </button>
+              ) : (
+                <form onSubmit={handleCheckout} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+                  <h3 className="font-medium text-white">Where should we send your preset?</h3>
+                  <input 
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email address"
+                    className="w-full h-14 bg-[#050505] border border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-white/30"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={isProcessing}
+                    className="w-full h-14 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex justify-center items-center"
+                  >
+                    {isProcessing ? "Connecting to Secure Gateway..." : `Pay ₹${product.price}`}
+                  </button>
+                </form>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4 border-y border-white/10 py-8 mb-8">
               <div className="flex items-center gap-3 text-gray-300">
@@ -167,7 +243,7 @@ export default function ProductPage() {
                 <span className="font-medium">Secure Checkout</span>
               </div>
               <p className="text-sm text-gray-400">
-                Your payment information is processed securely. You will receive an instant download link via email after purchase.
+                Your payment information is processed securely by Cashfree. You will receive an instant download link via email after purchase.
               </p>
             </div>
           </div>
