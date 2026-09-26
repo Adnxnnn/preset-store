@@ -9,8 +9,12 @@ export interface Preset {
   afterImg: string;  // Will match after_img in DB
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+
+if (supabaseUrl === 'https://placeholder.supabase.co') {
+  console.error("CRITICAL: Supabase URL is missing! Ensure NEXT_PUBLIC_SUPABASE_URL is set in your hosting provider.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
