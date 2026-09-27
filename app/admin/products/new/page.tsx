@@ -43,23 +43,23 @@ export default function NewProductPage() {
   const [presetFile, setPresetFile] = useState<File | null>(null);
   const [afterImagePreview, setAfterImagePreview] = useState<string | null>(null);
 
-  async function uploadFileToBucket(file: File, bucket: string, folder: string) {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${folder}/${Math.random().toString(36).substring(2, 9)}-${Date.now()}.${fileExt}`;
-    
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, file, { cacheControl: "3600", upsert: false });
-      
-    if (error) throw error;
+  async function uploadFileToServer(file: File, bucket: string, folder: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", bucket);
+    formData.append("folder", folder);
 
-    if (bucket === "product-previews") {
-      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      return { path: data.path, url: publicUrl };
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "File upload failed");
     }
 
-    // For private bucket product-files, return the storage path
-    return { path: data.path, url: data.path };
+    return data;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -75,22 +75,24 @@ export default function NewProductPage() {
       // 1. Upload Images to Public Bucket
       let beforeUrl = null;
       if (beforeImage) {
-        const beforeUpload = await uploadFileToBucket(beforeImage, "product-previews", "before");
+        const beforeUpload = await uploadFileToServer(beforeImage, "product-previews", "before");
         beforeUrl = beforeUpload.url;
       }
       
-      const afterUpload = await uploadFileToBucket(afterImage, "product-previews", "after");
+      const afterUpload = await uploadFileToServer(afterImage, "product-previews", "after");
       const afterUrl = afterUpload.url;
 
       // 2. Upload Preset File to PRIVATE Bucket
-      const fileUpload = await uploadFileToBucket(presetFile, "product-files", "presets");
+      const fileUpload = await uploadFileToServer(presetFile, "product-files", "presets");
       const filePath = fileUpload.path;
 
       // 3. Save Product to Supabase Database
       const parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
 
-      const { error } = await supabase.from("products").insert([
-        {
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
           full_description: fullDescription.trim() || description.trim(),
@@ -106,10 +108,13 @@ export default function NewProductPage() {
           file_url: filePath,
           is_published: isPublished,
           is_featured: isFeatured,
-        },
-      ]);
+        }),
+      });
 
-      if (error) throw error;
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to create preset product");
+      }
 
       showToast("Preset collection created and published successfully!", "success");
       router.push("/admin/products");

@@ -85,22 +85,23 @@ export default function EditProductPage() {
     loadProduct();
   }, [id, router, showToast]);
 
-  async function uploadFileToBucket(file: File, bucket: string, folder: string) {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${folder}/${Math.random().toString(36).substring(2, 9)}-${Date.now()}.${fileExt}`;
-    
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, file, { cacheControl: "3600", upsert: false });
-      
-    if (error) throw error;
+  async function uploadFileToServer(file: File, bucket: string, folder: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", bucket);
+    formData.append("folder", folder);
 
-    if (bucket === "product-previews") {
-      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      return { path: data.path, url: publicUrl };
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "File upload failed");
     }
 
-    return { path: data.path, url: data.path };
+    return data;
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -114,25 +115,27 @@ export default function EditProductPage() {
 
       // Handle replacement files if uploaded
       if (newBeforeImage) {
-        const bRes = await uploadFileToBucket(newBeforeImage, "product-previews", "before");
+        const bRes = await uploadFileToServer(newBeforeImage, "product-previews", "before");
         beforeUrl = bRes.url;
       }
 
       if (newAfterImage) {
-        const aRes = await uploadFileToBucket(newAfterImage, "product-previews", "after");
+        const aRes = await uploadFileToServer(newAfterImage, "product-previews", "after");
         afterUrl = aRes.url;
       }
 
       if (newPresetFile) {
-        const fRes = await uploadFileToBucket(newPresetFile, "product-files", "presets");
+        const fRes = await uploadFileToServer(newPresetFile, "product-files", "presets");
         fileUrl = fRes.path;
       }
 
       const parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
 
-      const { error } = await supabase
-        .from("products")
-        .update({
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
           title: title.trim(),
           description: description.trim(),
           full_description: fullDescription.trim() || description.trim(),
@@ -147,11 +150,13 @@ export default function EditProductPage() {
           file_url: fileUrl,
           is_published: isPublished,
           is_featured: isFeatured,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+        }),
+      });
 
-      if (error) throw error;
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to update preset");
+      }
 
       showToast("Preset collection updated successfully!", "success");
       router.push("/admin/products");

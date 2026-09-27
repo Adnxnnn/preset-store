@@ -30,13 +30,11 @@ export default function AdminProductsPage() {
   async function loadProducts() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const res = await fetch("/api/admin/products");
+      const data = await res.json();
 
-      if (!error && data && data.length > 0) {
-        setProducts(data);
+      if (res.ok && data.products && data.products.length > 0) {
+        setProducts(data.products);
       } else {
         setProducts(INITIAL_PRESETS);
       }
@@ -57,12 +55,19 @@ export default function AdminProductsPage() {
     setTogglingId(product.id);
 
     try {
-      const { error } = await supabase
-        .from("products")
-        .update({ is_published: nextStatus, updated_at: new Date().toISOString() })
-        .eq("id", product.id);
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...product,
+          is_published: nextStatus,
+        }),
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update status");
+      }
 
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, is_published: nextStatus } : p))
@@ -80,12 +85,19 @@ export default function AdminProductsPage() {
     setTogglingId(product.id);
 
     try {
-      const { error } = await supabase
-        .from("products")
-        .update({ is_featured: nextFeatured, updated_at: new Date().toISOString() })
-        .eq("id", product.id);
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...product,
+          is_featured: nextFeatured,
+        }),
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update featured flag");
+      }
 
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, is_featured: nextFeatured } : p))
@@ -109,12 +121,14 @@ export default function AdminProductsPage() {
     if (!confirmed) return;
 
     try {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", product.id);
+      const res = await fetch(`/api/admin/products?id=${product.id}`, {
+        method: "DELETE",
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Could not delete preset");
+      }
 
       setProducts((prev) => prev.filter((p) => p.id !== product.id));
       showToast(`Preset "${product.title}" deleted successfully.`, "success");
