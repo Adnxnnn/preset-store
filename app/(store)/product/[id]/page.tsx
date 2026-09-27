@@ -1,176 +1,85 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
-import { SlidersHorizontal, ArrowLeft, Download, ShieldCheck, FileImage } from "lucide-react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { 
+  ArrowLeft, 
+  Download, 
+  ShieldCheck, 
+  FileArchive, 
+  Star, 
+  Zap, 
+  Check, 
+  Lock, 
+  Smartphone, 
+  Laptop, 
+  Tag, 
+  Sparkles,
+  Layers,
+  HelpCircle
+} from "lucide-react";
+import { supabase } from "../../../lib/supabase";
+import { INITIAL_PRESETS, PresetProduct } from "../../../lib/store";
+import { BeforeAfterSlider } from "../../../components/BeforeAfterSlider";
+import { FastCheckoutModal } from "../../../components/FastCheckoutModal";
 
-
-function ImageSlider({ beforeSrc, afterSrc }: { beforeSrc: string; afterSrc: string }) {
-  const [sliderPosition, setSliderPosition] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleMove = useCallback((clientX: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percent = Math.max(0, Math.min((x / rect.width) * 100, 100));
-    setSliderPosition(percent);
-  }, []);
-
-  const handleMouseMove = useCallback((e: globalThis.MouseEvent) => {
-    if (!isDragging) return;
-    handleMove(e.clientX);
-  }, [isDragging, handleMove]);
-
-  const handleTouchMove = useCallback((e: globalThis.TouchEvent) => {
-    if (!isDragging) return;
-    handleMove(e.touches[0].clientX);
-  }, [isDragging, handleMove]);
-
-  const stopDragging = useCallback(() => setIsDragging(false), []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('mouseup', stopDragging);
-      window.addEventListener('touchend', stopDragging);
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('touchmove', handleTouchMove);
-      return () => {
-        window.removeEventListener('mouseup', stopDragging);
-        window.removeEventListener('touchend', stopDragging);
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('touchmove', handleTouchMove);
-      };
-    }
-  }, [stopDragging, handleMouseMove, handleTouchMove]);
-
-  return (
-    <div 
-      ref={containerRef}
-      className="relative w-full aspect-[4/5] md:aspect-square lg:aspect-[4/5] rounded-3xl overflow-hidden cursor-ew-resize select-none"
-      onMouseDown={(e) => { setIsDragging(true); handleMove(e.clientX); }}
-      onTouchStart={(e) => { setIsDragging(true); handleMove(e.touches[0].clientX); }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={afterSrc} alt="After edit" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-      
-      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ width: `${sliderPosition}%` }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={beforeSrc} alt="Before edit" className="absolute inset-0 w-full h-full object-cover" style={{ width: `${100 / (sliderPosition / 100)}%`, maxWidth: 'none' }} />
-      </div>
-
-      <div className="absolute inset-y-0 w-1 bg-white pointer-events-none transform -translate-x-1/2" style={{ left: `${sliderPosition}%` }}>
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-2xl">
-          <SlidersHorizontal className="w-5 h-5 text-black" />
-        </div>
-      </div>
-      
-      <div className="absolute top-6 left-6 bg-black/40 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full font-medium tracking-wide">BEFORE</div>
-      <div className="absolute top-6 right-6 bg-black/40 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full font-medium tracking-wide">AFTER</div>
-    </div>
-  );
-}
-
-export default function ProductPage() {
-  const { id } = useParams();
-  const [product, setProduct] = useState<any>(null);
+export default function ProductDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const [product, setProduct] = useState<PresetProduct | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<PresetProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Checkout State
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [email, setEmail] = useState("");
-  const [promoCode, setPromoCode] = useState("");
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [promoMsg, setPromoMsg] = useState({ text: "", type: "" });
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   useEffect(() => {
-    async function loadProduct() {
-      const { data } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (data) setProduct(data);
-      setLoading(false);
-    }
-    if (id) loadProduct();
+    async function loadProductData() {
+      if (!id) return;
+      setLoading(true);
 
-    // Load Cashfree SDK script
-    const script = document.createElement('script');
-    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-    document.body.appendChild(script);
+      try {
+        // 1. Fetch main product
+        const { data: dbProduct } = await supabase
+          .from("products")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
+        const selected = dbProduct || INITIAL_PRESETS.find((p) => p.id === id) || null;
+        setProduct(selected);
+
+        // 2. Fetch related presets
+        const { data: related } = await supabase
+          .from("products")
+          .select("*")
+          .eq("is_published", true)
+          .neq("id", id)
+          .limit(3);
+
+        if (related && related.length > 0) {
+          setRelatedProducts(related);
+        } else {
+          setRelatedProducts(INITIAL_PRESETS.filter((p) => p.id !== id).slice(0, 3));
+        }
+      } catch (err) {
+        console.warn("Using fallback product details:", err);
+        const fallback = INITIAL_PRESETS.find((p) => p.id === id) || null;
+        setProduct(fallback);
+        setRelatedProducts(INITIAL_PRESETS.filter((p) => p.id !== id).slice(0, 3));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProductData();
   }, [id]);
-
-  async function applyPromoCode(e: React.MouseEvent) {
-    e.preventDefault();
-    if (!promoCode) return;
-    setPromoMsg({ text: "Checking...", type: "gray" });
-    
-    const { data } = await supabase
-      .from('promo_codes')
-      .select('discount_percentage')
-      .eq('code', promoCode.toUpperCase())
-      .eq('is_active', true)
-      .single();
-
-    if (data) {
-      setDiscountPercent(data.discount_percentage);
-      setPromoMsg({ text: `Code applied! ${data.discount_percentage}% off.`, type: "green" });
-    } else {
-      setDiscountPercent(0);
-      setPromoMsg({ text: "Invalid or expired code.", type: "red" });
-    }
-  }
-
-  async function handleCheckout(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return alert("Please enter your email");
-    
-    setIsProcessing(true);
-    try {
-      // 1. Create Order on Backend
-      const res = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product.id,
-          customerEmail: email,
-          promoCode: discountPercent > 0 ? promoCode : undefined
-        })
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create checkout session");
-
-      // 2. Initialize Cashfree Checkout matching server environment
-      // @ts-ignore
-      const cashfree = window.Cashfree({
-        mode: data.environment || "production",
-      });
-
-      const checkoutOptions = {
-        paymentSessionId: data.paymentSessionId,
-        redirectTarget: "_self", // Redirects in the same window to our verify URL
-      };
-      
-      cashfree.checkout(checkoutOptions);
-
-    } catch (error: any) {
-      console.error("Checkout Error:", error);
-      alert(error?.message || "Failed to initiate checkout. Please try again.");
-      setIsProcessing(false);
-    }
-  }
 
   if (loading) {
     return (
       <div className="min-h-screen pt-32 px-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <p className="text-xs text-gray-400">Loading preset package...</p>
+        </div>
       </div>
     );
   }
@@ -178,128 +87,213 @@ export default function ProductPage() {
   if (!product) {
     return (
       <div className="min-h-screen pt-32 px-6 flex flex-col items-center justify-center text-center">
-        <h1 className="text-3xl font-serif mb-4">Product not found</h1>
-        <Link href="/store" className="text-gray-400 hover:text-white underline">Return to store</Link>
+        <h1 className="text-3xl font-serif text-white mb-3">Preset Not Found</h1>
+        <p className="text-gray-400 text-sm mb-6">The requested preset collection may have been archived or removed.</p>
+        <Link
+          href="/store"
+          className="h-12 px-6 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm flex items-center justify-center"
+        >
+          Return to Store Catalog
+        </Link>
       </div>
     );
   }
 
-  return (
-    <main className="min-h-screen pt-32 pb-24 px-6">
-      <div className="max-w-7xl mx-auto">
-        <Link href="/store" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-12">
-          <ArrowLeft className="w-4 h-4" /> Back to Store
-        </Link>
+  const defaultIncludes = [
+    `${product.preset_count || 12} Custom Preset Variations (.XMP & .DNG)`,
+    "Mobile One-Click DNG Files (Free Lightroom Mobile App)",
+    "Desktop XMP Files (Lightroom Classic, CC & Photoshop ACR)",
+    "Step-by-Step PDF Installation Guide & Video Walkthrough",
+    "Free Lifetime Updates & Re-downloads"
+  ];
 
-        <div className="grid lg:grid-cols-2 gap-16 items-start">
-          {/* Left: Interactive Slider */}
-          <div className="sticky top-32">
-            <ImageSlider 
-              beforeSrc={product.before_image_url || 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800'} 
-              afterSrc={product.after_image_url || 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800&sat=150'} 
-            />
+  const defaultCompatibility = [
+    "Lightroom Mobile (iOS & Android) — Free App, No Subscription Required",
+    "Lightroom Classic (v7.3 and newer)",
+    "Lightroom CC (Desktop)",
+    "Adobe Photoshop Camera Raw (ACR)"
+  ];
+
+  return (
+    <main className="min-h-screen pt-28 pb-24 px-6">
+      {/* Fast Checkout Modal */}
+      <FastCheckoutModal
+        product={product}
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+      />
+
+      <div className="max-w-7xl mx-auto space-y-16">
+        
+        {/* Navigation Breadcrumb */}
+        <div>
+          <Link
+            href="/store"
+            className="inline-flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to All Presets
+          </Link>
+        </div>
+
+        {/* Main Product Showcase Grid */}
+        <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+          
+          {/* Left: Interactive Slider & Previews */}
+          <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-28">
+            <div className="relative group">
+              <BeforeAfterSlider
+                beforeSrc={product.before_image_url || "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=1200"}
+                afterSrc={product.after_image_url}
+                title={product.title}
+                aspectRatio="aspect-[4/5]"
+              />
+            </div>
+            
+            <div className="flex items-center justify-between px-2 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                <Sparkles className="w-3.5 h-3.5" /> Interactive RAW comparison
+              </span>
+              <span>Drag slider to see true RAW grading</span>
+            </div>
           </div>
 
-          {/* Right: Product Details */}
-          <div className="flex flex-col">
-            <h1 className="text-5xl font-serif text-white mb-6 leading-tight">{product.title}</h1>
+          {/* Right: Product Details & Purchase CTA */}
+          <div className="lg:col-span-5 flex flex-col space-y-8">
             
-            <div className="flex items-end gap-4 mb-8">
-              <span className="text-4xl font-medium text-white">₹{product.price}</span>
-              {product.compare_at_price && (
-                <span className="text-xl text-gray-500 line-through mb-1">₹{product.compare_at_price}</span>
+            {/* Title & Category & Rating */}
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-xs uppercase tracking-widest font-semibold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {product.category || "Preset Collection"}
+                </span>
+                <div className="flex items-center gap-1 text-xs text-amber-400">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" />
+                  <span className="font-semibold">{product.rating || 4.9}</span>
+                  <span className="text-gray-500">({product.reviews_count || 48} verified reviews)</span>
+                </div>
+              </div>
+
+              <h1 className="text-4xl sm:text-5xl font-serif text-white tracking-tight leading-tight">
+                {product.title}
+              </h1>
+
+              {/* Pricing */}
+              <div className="flex items-baseline gap-4 mt-4">
+                <span className="text-4xl font-bold text-white">₹{product.price}</span>
+                {product.compare_at_price && (
+                  <span className="text-xl text-gray-500 line-through">₹{product.compare_at_price}</span>
+                )}
+                {product.compare_at_price && (
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                    Save {Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)}%
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Descriptions */}
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed border-t border-white/5 pt-6">
+              <p>{product.description}</p>
+              {product.full_description && (
+                <p className="text-xs text-gray-400">{product.full_description}</p>
               )}
             </div>
 
-            <p className="text-lg text-gray-400 mb-12 leading-relaxed">
-              {product.description || "Premium Lightroom presets designed to transform your photos with one click."}
-            </p>
+            {/* Instant Buy CTA Card */}
+            <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl">
+              <button
+                onClick={() => setIsCheckoutOpen(true)}
+                className="w-full h-16 bg-white text-black font-semibold text-lg rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2.5 shadow-2xl hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <Zap className="w-5 h-5 text-black" />
+                <span>Instant Buy — ₹{product.price}</span>
+              </button>
 
-            {/* Checkout Area */}
-            <div className="mb-8">
-              {!showCheckout ? (
-                <button 
-                  onClick={() => setShowCheckout(true)}
-                  className="w-full h-16 bg-white text-black font-medium text-lg rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                >
-                  Buy Now — ₹{product.price}
-                </button>
-              ) : (
-                <form onSubmit={handleCheckout} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
-                  <h3 className="font-medium text-white">Where should we send your preset?</h3>
-                  <input 
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email address"
-                    className="w-full h-14 bg-[#050505] border border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-white/30"
-                  />
-                  
-                  <div className="pt-2 border-t border-white/10 mt-4">
-                    <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider font-medium">Have a promo code?</p>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        placeholder="Discount code"
-                        className="flex-1 h-12 bg-[#050505] border border-white/10 rounded-xl px-4 text-white focus:outline-none focus:border-white/30 uppercase"
-                      />
-                      <button 
-                        type="button"
-                        onClick={applyPromoCode}
-                        className="h-12 px-6 bg-white/10 text-white font-medium rounded-xl hover:bg-white/20 transition-colors"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                    {promoMsg.text && (
-                      <p className={`text-sm mt-2 ${promoMsg.type === 'green' ? 'text-green-400' : promoMsg.type === 'red' ? 'text-red-400' : 'text-gray-400'}`}>
-                        {promoMsg.text}
-                      </p>
-                    )}
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={isProcessing}
-                    className="w-full h-14 mt-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex justify-center items-center"
-                  >
-                    {isProcessing ? "Connecting to Secure Gateway..." : `Pay ₹${discountPercent > 0 ? (product.price - (product.price * discountPercent / 100)).toFixed(2) : product.price}`}
-                  </button>
-                </form>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 border-y border-white/10 py-8 mb-8">
-              <div className="flex items-center gap-3 text-gray-300">
-                <FileImage className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">Format</p>
-                  <p className="font-medium">{product.format || '.XMP & .DNG'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <Download className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">Includes</p>
-                  <p className="font-medium">{product.preset_count || 10} Presets</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 rounded-2xl p-6 border border-white/5">
-              <div className="flex items-center gap-3 mb-4 text-white">
-                <ShieldCheck className="w-5 h-5 text-green-400" />
-                <span className="font-medium">Secure Checkout</span>
-              </div>
-              <p className="text-sm text-gray-400">
-                Your payment information is processed securely by Cashfree. You will receive an instant download link via email after purchase.
+              <p className="text-center text-xs text-gray-400">
+                ⚡ Instant download after checkout &bull; No account creation required
               </p>
+
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5 text-[11px] text-gray-400">
+                <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 100% Secure Checkout</span>
+                <span className="flex items-center gap-1.5"><Download className="w-3.5 h-3.5 text-cyan-400" /> Instant .ZIP Delivery</span>
+              </div>
             </div>
+
+            {/* What's Included */}
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400" /> What&apos;s Included In This Pack
+              </h3>
+              <ul className="space-y-2.5 text-xs text-gray-300">
+                {(product.includes && product.includes.length > 0 ? product.includes : defaultIncludes).map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Software Compatibility */}
+            <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-2">
+                <Laptop className="w-4 h-4 text-cyan-400" /> Software & App Compatibility
+              </h3>
+              <ul className="space-y-2 text-xs text-gray-400">
+                {(product.compatibility && product.compatibility.length > 0 ? product.compatibility : defaultCompatibility).map((item, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
           </div>
         </div>
+
+        {/* Related Presets */}
+        {relatedProducts.length > 0 && (
+          <div className="pt-16 border-t border-white/5 space-y-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-serif text-white">You May Also Like</h3>
+                <p className="text-xs text-gray-400 mt-1">Explore other complimentary color palettes.</p>
+              </div>
+              <Link href="/store" className="text-xs text-gray-400 hover:text-white transition-colors">
+                View All &rarr;
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {relatedProducts.map((rel) => (
+                <Link
+                  key={rel.id}
+                  href={`/product/${rel.id}`}
+                  className="group bg-[#0a0a0a] border border-white/5 hover:border-white/20 rounded-3xl p-4 transition-all duration-300 block"
+                >
+                  <div className="relative aspect-[4/5] rounded-2xl overflow-hidden mb-4 bg-[#050505]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={rel.after_image_url}
+                      alt={rel.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                    <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md border border-white/10 text-gray-300 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                      {rel.format || ".XMP & .DNG"}
+                    </div>
+                  </div>
+                  <h4 className="text-base font-serif text-white group-hover:text-emerald-300 transition-colors mb-1">{rel.title}</h4>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-emerald-400">{rel.category || "Preset"}</span>
+                    <span className="font-bold text-white">₹{rel.price}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </main>
   );

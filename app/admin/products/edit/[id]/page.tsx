@@ -1,27 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "../../../lib/supabase";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { supabase } from "../../../../lib/supabase";
+import { useRouter, useParams } from "next/navigation";
 import { 
   ArrowLeft, 
   Upload, 
   FileImage, 
   FileArchive, 
   Check, 
-  Sparkles,
-  Tag,
-  DollarSign,
-  Video,
-  Layers
+  Save
 } from "lucide-react";
 import Link from "next/link";
-import { useUI } from "../../../components/UIFeedback";
+import { useUI } from "../../../../components/UIFeedback";
+import { INITIAL_PRESETS } from "../../../../lib/store";
 
-export default function NewProductPage() {
+export default function EditProductPage() {
   const router = useRouter();
+  const { id } = useParams<{ id: string }>();
   const { showToast } = useUI();
-  const [loading, setLoading] = useState(false);
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
   // Form State
   const [title, setTitle] = useState("");
@@ -30,18 +30,60 @@ export default function NewProductPage() {
   const [price, setPrice] = useState("");
   const [comparePrice, setComparePrice] = useState("");
   const [category, setCategory] = useState("Cinematic");
-  const [tags, setTags] = useState("Lightroom, Cinematic, Mobile, Desktop");
+  const [tags, setTags] = useState("");
   const [format, setFormat] = useState(".XMP & .DNG Files");
   const [presetCount, setPresetCount] = useState("12");
-  const [previewVideoUrl, setPreviewVideoUrl] = useState("");
   const [isFeatured, setIsFeatured] = useState(false);
   const [isPublished, setIsPublished] = useState(true);
   
-  // File State
-  const [beforeImage, setBeforeImage] = useState<File | null>(null);
-  const [afterImage, setAfterImage] = useState<File | null>(null);
-  const [presetFile, setPresetFile] = useState<File | null>(null);
-  const [afterImagePreview, setAfterImagePreview] = useState<string | null>(null);
+  // Existing & New media
+  const [existingBeforeUrl, setExistingBeforeUrl] = useState<string | null>(null);
+  const [existingAfterUrl, setExistingAfterUrl] = useState<string>("");
+  const [existingFileUrl, setExistingFileUrl] = useState<string>("");
+  const [newBeforeImage, setNewBeforeImage] = useState<File | null>(null);
+  const [newAfterImage, setNewAfterImage] = useState<File | null>(null);
+  const [newPresetFile, setNewPresetFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    async function loadProduct() {
+      if (!id) return;
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
+        const p = data || INITIAL_PRESETS.find((x) => x.id === id);
+
+        if (p) {
+          setTitle(p.title || "");
+          setDescription(p.description || "");
+          setFullDescription(p.full_description || p.description || "");
+          setPrice(p.price ? String(p.price) : "");
+          setComparePrice(p.compare_at_price ? String(p.compare_at_price) : "");
+          setCategory(p.category || "Cinematic");
+          setTags(Array.isArray(p.tags) ? p.tags.join(", ") : "");
+          setFormat(p.format || ".XMP & .DNG Files");
+          setPresetCount(p.preset_count ? String(p.preset_count) : "12");
+          setIsFeatured(!!p.is_featured);
+          setIsPublished(p.is_published !== false);
+          setExistingBeforeUrl(p.before_image_url || null);
+          setExistingAfterUrl(p.after_image_url || "");
+          setExistingFileUrl(p.file_url || "");
+        } else {
+          showToast("Preset collection not found.", "error");
+          router.push("/admin/products");
+        }
+      } catch (err: any) {
+        console.error("Error loading product for edit:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProduct();
+  }, [id, router, showToast]);
 
   async function uploadFileToBucket(file: File, bucket: string, folder: string) {
     const fileExt = file.name.split(".").pop();
@@ -58,39 +100,39 @@ export default function NewProductPage() {
       return { path: data.path, url: publicUrl };
     }
 
-    // For private bucket product-files, return the storage path
     return { path: data.path, url: data.path };
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!afterImage || !presetFile) {
-      showToast("Please upload an After image and the preset ZIP file.", "error");
-      return;
-    }
-
-    setLoading(true);
+    setSaving(true);
 
     try {
-      // 1. Upload Images to Public Bucket
-      let beforeUrl = null;
-      if (beforeImage) {
-        const beforeUpload = await uploadFileToBucket(beforeImage, "product-previews", "before");
-        beforeUrl = beforeUpload.url;
+      let beforeUrl = existingBeforeUrl;
+      let afterUrl = existingAfterUrl;
+      let fileUrl = existingFileUrl;
+
+      // Handle replacement files if uploaded
+      if (newBeforeImage) {
+        const bRes = await uploadFileToBucket(newBeforeImage, "product-previews", "before");
+        beforeUrl = bRes.url;
       }
-      
-      const afterUpload = await uploadFileToBucket(afterImage, "product-previews", "after");
-      const afterUrl = afterUpload.url;
 
-      // 2. Upload Preset File to PRIVATE Bucket
-      const fileUpload = await uploadFileToBucket(presetFile, "product-files", "presets");
-      const filePath = fileUpload.path;
+      if (newAfterImage) {
+        const aRes = await uploadFileToBucket(newAfterImage, "product-previews", "after");
+        afterUrl = aRes.url;
+      }
 
-      // 3. Save Product to Supabase Database
+      if (newPresetFile) {
+        const fRes = await uploadFileToBucket(newPresetFile, "product-files", "presets");
+        fileUrl = fRes.path;
+      }
+
       const parsedTags = tags.split(",").map((t) => t.trim()).filter(Boolean);
 
-      const { error } = await supabase.from("products").insert([
-        {
+      const { error } = await supabase
+        .from("products")
+        .update({
           title: title.trim(),
           description: description.trim(),
           full_description: fullDescription.trim() || description.trim(),
@@ -102,23 +144,32 @@ export default function NewProductPage() {
           preset_count: parseInt(presetCount, 10) || 12,
           before_image_url: beforeUrl,
           after_image_url: afterUrl,
-          preview_video_url: previewVideoUrl.trim() || null,
-          file_url: filePath,
+          file_url: fileUrl,
           is_published: isPublished,
           is_featured: isFeatured,
-        },
-      ]);
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
       if (error) throw error;
 
-      showToast("Preset collection created and published successfully!", "success");
+      showToast("Preset collection updated successfully!", "success");
       router.push("/admin/products");
-    } catch (error: any) {
-      console.error("Product upload error:", error);
-      showToast(error.message || "Failed to create preset product", "error");
+    } catch (err: any) {
+      console.error("Save error:", err);
+      showToast(err.message || "Failed to update preset", "error");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center gap-4">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <p className="text-xs text-gray-400">Loading preset information...</p>
+      </div>
+    );
   }
 
   return (
@@ -133,17 +184,13 @@ export default function NewProductPage() {
       <div className="bg-[#080808] border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
         <div>
           <span className="text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-1 block">
-            Catalog Management
+            Edit Collection
           </span>
-          <h1 className="text-2xl sm:text-3xl font-serif text-white">Add New Preset Collection</h1>
-          <p className="text-xs text-gray-400 mt-1">
-            Fill in the details, upload comparison previews, and store the private preset files.
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-serif text-white">Edit Preset: {title}</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSave} className="space-y-8">
           
-          {/* Basic Info */}
           <div className="space-y-5">
             <div>
               <label className="block text-xs uppercase tracking-wider font-semibold text-gray-300 mb-2">
@@ -154,7 +201,6 @@ export default function NewProductPage() {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Moody Cyberpunk Tokyo"
                 className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
               />
             </div>
@@ -186,7 +232,6 @@ export default function NewProductPage() {
                   type="text"
                   value={format}
                   onChange={(e) => setFormat(e.target.value)}
-                  placeholder=".XMP & .DNG Files"
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
                 />
               </div>
@@ -194,25 +239,23 @@ export default function NewProductPage() {
 
             <div>
               <label className="block text-xs uppercase tracking-wider font-semibold text-gray-300 mb-2">
-                Short Description (Catalog & Card preview) <span className="text-emerald-400">*</span>
+                Short Description <span className="text-emerald-400">*</span>
               </label>
               <textarea 
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief summary of the mood, colors, and ideal lighting for this preset pack..."
                 className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm focus:outline-none focus:border-white/30 resize-none"
               />
             </div>
 
             <div>
               <label className="block text-xs uppercase tracking-wider font-semibold text-gray-300 mb-2">
-                Full Description (Product detail page)
+                Full Description
               </label>
               <textarea 
                 value={fullDescription}
                 onChange={(e) => setFullDescription(e.target.value)}
-                placeholder="In-depth breakdown of color grading, skin tone preservation, and technical workflow..."
                 className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm focus:outline-none focus:border-white/30 resize-none"
               />
             </div>
@@ -228,21 +271,19 @@ export default function NewProductPage() {
                   required
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  placeholder="499"
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
                 />
               </div>
 
               <div>
                 <label className="block text-xs uppercase tracking-wider font-semibold text-gray-300 mb-2">
-                  Compare Price (Optional Discount)
+                  Compare Price (Optional)
                 </label>
                 <input 
                   type="number" 
                   step="1"
                   value={comparePrice}
                   onChange={(e) => setComparePrice(e.target.value)}
-                  placeholder="999"
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
                 />
               </div>
@@ -255,7 +296,6 @@ export default function NewProductPage() {
                   type="number" 
                   value={presetCount}
                   onChange={(e) => setPresetCount(e.target.value)}
-                  placeholder="12"
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
                 />
               </div>
@@ -269,7 +309,6 @@ export default function NewProductPage() {
                 type="text" 
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                placeholder="Lightroom, Cinematic, Moody, Night, Urban"
                 className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-white text-sm focus:outline-none focus:border-white/30"
               />
             </div>
@@ -277,67 +316,61 @@ export default function NewProductPage() {
 
           <hr className="border-white/5" />
 
-          {/* Media & Files Section */}
+          {/* Replacement Media */}
           <div className="space-y-6">
-            <h3 className="text-base font-serif text-white">Media Previews & Private Preset File</h3>
+            <h3 className="text-base font-serif text-white">Update Media & Preset Files</h3>
 
             <div className="grid sm:grid-cols-2 gap-6">
               {/* Before Image */}
-              <div className="bg-[#050505] border border-dashed border-white/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white/5 transition-colors relative min-h-[180px]">
+              <div className="bg-[#050505] border border-dashed border-white/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-white/5 transition-colors relative min-h-[160px]">
                 <input 
                   type="file" 
                   accept="image/*" 
-                  onChange={(e) => setBeforeImage(e.target.files?.[0] || null)} 
+                  onChange={(e) => setNewBeforeImage(e.target.files?.[0] || null)} 
                   className="absolute inset-0 opacity-0 cursor-pointer" 
                 />
-                <FileImage className="w-8 h-8 text-gray-500 mb-2" />
-                <p className="text-xs font-semibold text-white">RAW Before Image (Optional)</p>
+                <FileImage className="w-7 h-7 text-gray-500 mb-2" />
+                <p className="text-xs font-semibold text-white">Replace RAW Before Image</p>
                 <p className="text-[11px] text-gray-500 mt-1">
-                  {beforeImage ? beforeImage.name : "Used for comparison slider"}
+                  {newBeforeImage ? newBeforeImage.name : existingBeforeUrl ? "Current image active (tap to replace)" : "No before image"}
                 </p>
               </div>
 
               {/* After Image */}
-              <div className="bg-[#050505] border border-dashed border-emerald-500/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500/60 transition-colors relative min-h-[180px]">
+              <div className="bg-[#050505] border border-dashed border-emerald-500/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-emerald-500/60 transition-colors relative min-h-[160px]">
                 <input 
                   type="file" 
                   accept="image/*" 
-                  required 
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    setAfterImage(f);
-                    if (f) setAfterImagePreview(URL.createObjectURL(f));
-                  }} 
+                  onChange={(e) => setNewAfterImage(e.target.files?.[0] || null)} 
                   className="absolute inset-0 opacity-0 cursor-pointer" 
                 />
-                <FileImage className="w-8 h-8 text-emerald-400 mb-2" />
-                <p className="text-xs font-semibold text-white">Edited After Image (Required)</p>
+                <FileImage className="w-7 h-7 text-emerald-400 mb-2" />
+                <p className="text-xs font-semibold text-white">Replace Edited After Image</p>
                 <p className="text-[11px] text-gray-500 mt-1">
-                  {afterImage ? afterImage.name : "Showcases the preset's final look"}
+                  {newAfterImage ? newAfterImage.name : "Current image active (tap to replace)"}
                 </p>
               </div>
             </div>
 
-            {/* Private Preset File (.ZIP) */}
-            <div className="bg-[#050505] border border-dashed border-blue-500/40 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-500/70 transition-colors relative min-h-[160px]">
+            {/* Replace ZIP */}
+            <div className="bg-[#050505] border border-dashed border-blue-500/40 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-500/70 transition-colors relative min-h-[140px]">
               <input 
                 type="file" 
                 accept=".zip,.xmp,.dng,.cube" 
-                required 
-                onChange={(e) => setPresetFile(e.target.files?.[0] || null)} 
+                onChange={(e) => setNewPresetFile(e.target.files?.[0] || null)} 
                 className="absolute inset-0 opacity-0 cursor-pointer" 
               />
-              <FileArchive className="w-9 h-9 text-blue-400 mb-2" />
-              <p className="text-sm font-semibold text-white">Upload Preset Package (.ZIP / .XMP / .DNG)</p>
+              <FileArchive className="w-8 h-8 text-blue-400 mb-2" />
+              <p className="text-sm font-semibold text-white">Replace Preset Package (.ZIP / .XMP)</p>
               <p className="text-xs text-gray-400 mt-1">
-                {presetFile ? presetFile.name : "Stored securely in private bucket 'product-files' (Never publicly visible)"}
+                {newPresetFile ? newPresetFile.name : "Current preset file linked in private storage (tap to upload new version)"}
               </p>
             </div>
           </div>
 
           <hr className="border-white/5" />
 
-          {/* Publishing Options */}
+          {/* Visibility Controls */}
           <div className="flex flex-wrap items-center gap-6">
             <label className="flex items-center gap-3 cursor-pointer text-xs font-semibold text-gray-300">
               <input
@@ -346,7 +379,7 @@ export default function NewProductPage() {
                 onChange={(e) => setIsPublished(e.target.checked)}
                 className="w-4 h-4 rounded border-white/20 bg-white/5 text-emerald-500 focus:ring-0"
               />
-              <span>Publish in Store Immediately</span>
+              <span>Published in Store Catalog</span>
             </label>
 
             <label className="flex items-center gap-3 cursor-pointer text-xs font-semibold text-gray-300">
@@ -356,23 +389,26 @@ export default function NewProductPage() {
                 onChange={(e) => setIsFeatured(e.target.checked)}
                 className="w-4 h-4 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-0"
               />
-              <span>Feature on Homepage Hero/Catalog</span>
+              <span>Featured on Homepage</span>
             </label>
           </div>
 
-          {/* Submit */}
+          {/* Save Button */}
           <button 
             type="submit"
-            disabled={loading}
+            disabled={saving}
             className="w-full h-14 bg-white text-black font-semibold text-base rounded-2xl hover:bg-gray-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-2xl hover:scale-[1.01] active:scale-[0.99]"
           >
-            {loading ? (
+            {saving ? (
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                <span>Uploading & Securing Preset...</span>
+                <span>Saving Changes...</span>
               </div>
             ) : (
-              <span>Publish Preset Collection</span>
+              <>
+                <Save className="w-4 h-4" />
+                <span>Save Preset Collection</span>
+              </>
             )}
           </button>
         </form>
