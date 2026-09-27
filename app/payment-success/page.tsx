@@ -56,6 +56,22 @@ function PaymentSuccessContent() {
         if (res.ok && data.success) {
           setProductData(data.product);
           setDownloadUrl(data.downloadUrl);
+
+          // Save to device local storage for immediate access in My Collection
+          try {
+            const existing = JSON.parse(localStorage.getItem("luma_purchases") || "[]");
+            const newPurchase = {
+              orderId,
+              productId: data.product.id,
+              productTitle: data.product.title,
+              productImage: data.product.after_image_url,
+              date: new Date().toISOString(),
+            };
+            const filtered = existing.filter((p: any) => p.orderId !== orderId);
+            localStorage.setItem("luma_purchases", JSON.stringify([newPurchase, ...filtered]));
+          } catch (storageErr) {
+            console.warn("Could not write purchase to localStorage:", storageErr);
+          }
         } else {
           setErrorMsg(data.error || "Unable to locate verified purchase.");
         }
@@ -160,13 +176,23 @@ function PaymentSuccessContent() {
                 {downloading ? "Starting Download..." : "Download Preset Files (.ZIP)"}
               </button>
 
-              {/* Order Reference */}
-              {orderId && (
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <span>Order Reference:</span>
-                  <span className="font-mono text-gray-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">{orderId}</span>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <Link
+                  href="/collection"
+                  className="w-full sm:w-auto px-6 h-11 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>View in My Collection</span>
+                </Link>
+
+                {/* Order Reference */}
+                {orderId && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                    <span>Order Reference:</span>
+                    <span className="font-mono text-gray-300 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">{orderId}</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>

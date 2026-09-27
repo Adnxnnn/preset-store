@@ -1,20 +1,5 @@
-"use client";
+import MyCollectionPage from "../collection/page";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-export default function CustomerAccountRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Instant direct download store without customer accounts
-    router.replace('/store');
-  }, [router]);
-
-  return (
-    <div className="min-h-screen pt-32 px-6 flex flex-col items-center justify-center text-center">
-      <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-      <p className="text-gray-400 text-sm">Redirecting to store...</p>
-    </div>
-  );
+export default function AccountPage() {
+  return <MyCollectionPage />;
 }

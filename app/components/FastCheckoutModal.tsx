@@ -86,6 +86,7 @@ export function FastCheckoutModal({ product, isOpen, onClose }: FastCheckoutModa
           customerName: name.trim() || undefined,
           customerPhone: phone.trim() || undefined,
           promoCode: discountPercent > 0 ? promoCode : undefined,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
         }),
       });
 

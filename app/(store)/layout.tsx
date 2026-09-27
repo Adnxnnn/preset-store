@@ -34,15 +34,21 @@ function Navbar() {
             <Link href="/store?category=Cinematic" className="hover:text-white transition-colors">Cinematic</Link>
             <Link href="/store?category=Film" className="hover:text-white transition-colors">Film & Vintage</Link>
             <Link href="/store?category=Portrait" className="hover:text-white transition-colors">Portraits</Link>
+            <Link href="/collection" className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 font-semibold">
+              <Download className="w-3.5 h-3.5" /> My Collection
+            </Link>
           </div>
         </div>
 
         {/* Right Action */}
         <div className="hidden md:flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full">
-            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Instant 1-Click Delivery</span>
-          </div>
+          <Link
+            href="/collection"
+            className="flex items-center gap-2 text-xs text-gray-300 hover:text-white bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>My Downloads</span>
+          </Link>
           <Link
             href="/store"
             className="h-10 px-5 bg-white text-black font-semibold text-xs tracking-wider uppercase rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
@@ -64,6 +70,13 @@ function Navbar() {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="md:hidden bg-[#0a0a0a] border-b border-white/10 px-6 py-6 space-y-4 animate-in slide-in-from-top duration-200">
+          <Link
+            href="/collection"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 text-base font-semibold text-emerald-400 py-2 border-b border-white/5"
+          >
+            <Download className="w-4 h-4" /> My Collection & Downloads
+          </Link>
           <Link
             href="/store"
             onClick={() => setMobileOpen(false)}
@@ -143,6 +156,7 @@ function Footer() {
         <div>
           <h3 className="text-white font-medium mb-4 tracking-widest text-xs uppercase">Store & Support</h3>
           <ul className="space-y-3 text-sm">
+            <li><Link href="/collection" className="text-emerald-400 hover:text-emerald-300 transition-colors font-medium">My Collection / Downloads</Link></li>
             <li><Link href="/store" className="hover:text-white transition-colors">Browse Catalog</Link></li>
             <li><Link href="/#faq" className="hover:text-white transition-colors">Installation FAQ</Link></li>
             <li><Link href="/admin" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">Creator Admin ↗</Link></li>

@@ -5,6 +5,16 @@ import { Resend } from "resend";
 import { INITIAL_PRESETS } from "../../../lib/store";
 import crypto from "crypto";
 
+function getRequestOrigin(req: Request) {
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || (host?.includes("localhost") || host?.includes("127.0.0.1") ? "http" : "https");
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  const reqUrl = new URL(req.url);
+  return reqUrl.origin;
+}
+
 export async function GET(req: Request) {
   const envValue = (process.env.CASHFREE_ENVIRONMENT || process.env.CASHFREE_ENV || "PRODUCTION").trim().toUpperCase();
   const clientId = (process.env.CASHFREE_APP_ID || "").trim();
@@ -12,15 +22,26 @@ export async function GET(req: Request) {
   const supabase = getServerSupabase();
   const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
 
+  const baseUrl = getRequestOrigin(req);
   const reqUrl = new URL(req.url);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || reqUrl.origin;
 
   try {
     const orderId = reqUrl.searchParams.get('order_id');
-    const productId = reqUrl.searchParams.get('product_id');
+    let productId = reqUrl.searchParams.get('product_id');
 
-    if (!orderId || !productId) {
+    if (!orderId) {
       return NextResponse.redirect(`${baseUrl}/payment-success?status=failed`);
+    }
+
+    // Look up existing order if present
+    const { data: dbExistingOrder } = await supabase
+      .from('orders')
+      .select('*, order_items(product_id)')
+      .eq('order_reference', orderId)
+      .maybeSingle();
+
+    if (!productId && dbExistingOrder?.order_items?.[0]?.product_id) {
+      productId = dbExistingOrder.order_items[0].product_id;
     }
 
     // 1. Server-side verification directly with Cashfree REST API
@@ -98,20 +119,23 @@ export async function GET(req: Request) {
 
     // 2. Fetch Product Details
     let product: any = null;
-    const { data: dbProduct } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .maybeSingle();
+    if (productId) {
+      const { data: dbProduct } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .maybeSingle();
 
-    if (dbProduct) {
-      product = dbProduct;
-    } else {
-      product = INITIAL_PRESETS.find(p => p.id === productId);
+      if (dbProduct) {
+        product = dbProduct;
+      } else {
+        product = INITIAL_PRESETS.find(p => p.id === productId);
+      }
     }
 
     if (!product) {
-      throw new Error("Product not found for verified order");
+      product = INITIAL_PRESETS[0];
+      productId = product.id;
     }
 
     // 3. Generate Secure Unique Download Token & Temporary Signed URL

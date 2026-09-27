@@ -3,6 +3,19 @@ import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { getServerSupabase } from "../../../lib/supabase";
 import { INITIAL_PRESETS } from "../../../lib/store";
 
+function getRequestOrigin(req: Request, clientOrigin?: string) {
+  if (clientOrigin && (clientOrigin.startsWith("http://") || clientOrigin.startsWith("https://"))) {
+    return clientOrigin.replace(/\/$/, "");
+  }
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || (host?.includes("localhost") || host?.includes("127.0.0.1") ? "http" : "https");
+  if (host) {
+    return `${proto}://${host}`;
+  }
+  const reqUrl = new URL(req.url);
+  return reqUrl.origin;
+}
+
 export async function POST(req: Request) {
   const envValue = (process.env.CASHFREE_ENVIRONMENT || process.env.CASHFREE_ENV || "PRODUCTION").trim().toUpperCase();
   const clientId = (process.env.CASHFREE_APP_ID || "").trim();
@@ -10,7 +23,7 @@ export async function POST(req: Request) {
   const supabase = getServerSupabase();
 
   try {
-    const { productId, customerEmail, customerName, customerPhone, promoCode } = await req.json();
+    const { productId, customerEmail, customerName, customerPhone, promoCode, origin } = await req.json();
 
     if (!productId || !customerEmail) {
       return NextResponse.json({ error: "Product ID and customer email are required" }, { status: 400 });
@@ -54,22 +67,30 @@ export async function POST(req: Request) {
     // 3. Generate unique order ID and reference
     const orderRef = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    // 4. Save initial pending order in Database
+    // 4. Save initial pending order in Database with order_items
     try {
-      await supabase.from("orders").insert({
+      const { data: insertedOrder } = await supabase.from("orders").insert({
         order_reference: orderRef,
         customer_email: customerEmail.trim().toLowerCase(),
         customer_name: customerName || "Guest Customer",
         customer_phone: customerPhone || null,
         total_amount: Number(finalPrice.toFixed(2)),
         status: "pending",
-      });
+      }).select("id").maybeSingle();
+
+      if (insertedOrder) {
+        await supabase.from("order_items").insert({
+          order_id: insertedOrder.id,
+          product_id: product.id,
+          price_at_purchase: Number(finalPrice.toFixed(2))
+        });
+      }
     } catch (dbErr) {
       console.warn("Could not insert pending order into DB:", dbErr);
     }
 
-    const reqUrl = new URL(req.url);
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || reqUrl.origin;
+    // Dynamically calculate exact base URL from incoming request or client origin to prevent 404 redirects
+    const baseUrl = getRequestOrigin(req, origin);
 
     // 5. Build Cashfree Order Payload
     const sanitizedCustomerId = (customerEmail.replace(/[^a-zA-Z0-9]/g, "") || `cust_${Date.now()}`).substring(0, 45);
@@ -90,7 +111,6 @@ export async function POST(req: Request) {
       },
     };
 
-    // Determine Cashfree Endpoint & Headers
     const isProduction = envValue === "PRODUCTION";
     const apiEndpoint = isProduction 
       ? "https://api.cashfree.com/pg/orders" 
@@ -122,7 +142,6 @@ export async function POST(req: Request) {
 
       // If direct REST returned an error, check if sandbox/prod environment mismatch occurred
       if (!directRes.ok && resData.message && resData.message.toLowerCase().includes("authentication")) {
-        // Try opposite environment (e.g. sandbox if prod key is sandbox or vice-versa)
         const altEndpoint = !isProduction
           ? "https://api.cashfree.com/pg/orders"
           : "https://sandbox.cashfree.com/pg/orders";
